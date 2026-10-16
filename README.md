@@ -37,16 +37,16 @@ API requests to `/api/tickets` require login/JWT. `.env.example` lists `MSSQL_SA
 
 | Check | Result |
 | --- | --- |
-| `dotnet build` / `dotnet test` | Build succeeded; **49/49** backend tests passed |
+| `dotnet build` / `dotnet test` | Build succeeded; **58/58** backend tests passed |
 | `npm run lint`, `npm run build --workspace apps/web` | Passed (frontend TypeScript compilation included) |
 | `npm run test --workspace apps/web` | **14/14** frontend tests passed; React `act(...)` warnings remain |
 | Fresh SQL development database | Migrations applied; seeded **6 customers, 6 agents, 40 tickets** |
 | Browser workflows | Login; TCK-0041 created (Premium Outage → Critical, Ben Osei, 2 h); TCK-0023 escalated Medium→High, reassigned Sara Lindqvist, SLA 8 h and history persisted after refresh; Status=New + Priority=High returned 2 rows; Clear filters restored list |
-| Docker / API security smoke checks | SQL healthy; API health **HTTP 200**; API non-root UID **1654**; development appsettings absent from runtime; unauthenticated tickets **401**; wrong password **401** |
+| Docker / API security smoke checks | **16/16** local checks passed: health, 401 without/invalid token, generic 401 for wrong credentials, inactive agent rejection, JWT login, `/auth/me`, SQL combined filters/count/page, customer search, unassigned-only and all SLA status filters. API non-root UID **1654**; development appsettings absent from runtime |
 
-Docker Desktop image readings: **API runtime 484 MB disk / 122 MB content**, **.NET 10 SDK 1.35 GB disk / 343 MB content** (local image measurements, not registry download sizes). Some build COPY layers were cached, but the specific **restore-cache check after changing only a `.cs` file was not completed**. Repeat a Docker build after a source-only edit and inspect the `RUN dotnet restore` line to validate caching.
+Docker Desktop image readings: **API runtime 484 MB disk / 122 MB content**, **.NET 10 SDK 1.35 GB disk / 343 MB content** (local image measurements, not registry download sizes). **Restore-cache verified:** after a temporary `Program.cs`-only edit, `docker compose --progress plain build api` showed **`RUN dotnet restore` — `CACHED`**; `dotnet publish` rebuilt. The source file was restored and `git status` was clean.
 
-Tests cover request regression and search debounce, SQL priority/combined filters/customer search, SLA boundaries and agent selection, escalation/validation, password hashing, React authentication handling and five SLA states. SQL was inspected at the query-composition level (`IQueryable` predicates before count/paging), in automated tests and manually via the filtered UI; no SQL Server execution plan or large-scale load test was performed.
+Tests cover request regression and search debounce, SQL priority/combined filters/customer search, SLA boundaries and agent selection, escalation handler retention/reassignment/history/rejections, password hashing, React authentication handling and five SLA states. SQL was inspected at the query-composition level (`IQueryable` predicates before count/paging), in automated tests and manually via the filtered UI; no SQL Server execution plan or large-scale load test was performed.
 
 ## Architecture, storage and decisions
 
@@ -59,6 +59,6 @@ Tests cover request regression and search debounce, SQL priority/combined filter
 
 AI was used to review the brief and starter code and draft patches, tests and documentation. The SQL-first filtering and separated triage policy were retained. **Corrections after running tools:** React effect lint errors, missing .NET options-binding dependency, EF model/migration mismatch, source-only search debounce page-reset bug and accidental publication of development config were fixed; local builds, tests and selected runtime flows were rerun. Code and decisions should be explainable during the review. AI estimates are not actual time spent.
 
-Development-verified, **not production-hardened**: concurrent creations may over-assign without transactional locking; tokens in localStorage have XSS exposure and no revocation/refresh; no roles, MFA, registration, password reset or rate limiting (out of scope). Inactive-agent and expired-token journeys, SQL Server plans/high-volume load and the source-edit Docker cache experiment were not exhaustively tested. NuGet reported **NU1902/NU1903 for `System.Security.Cryptography.Pkcs` 9.0.11**; npm audit found **one high-severity issue**; dependency remediation remains. React testing emitted `act(...)` warnings, despite passing tests.
+Development-verified, **not production-hardened**: concurrent creations may over-assign without transactional locking; tokens in localStorage have XSS exposure and no revocation/refresh; no roles, MFA, registration, password reset or rate limiting (out of scope). Inactive-agent login was checked via API; browser expired-token/return-navigation journeys, SQL Server plans and high-volume load were not exhaustively tested. NuGet reported **NU1902/NU1903 for `System.Security.Cryptography.Pkcs` 9.0.11**; npm audit found **one high-severity issue**; dependency remediation remains. React testing emitted `act(...)` warnings, despite passing tests.
 
 **Submission:** Email the fork link above, development login credentials and **actual time spent on Tasks 1–4**. Keep focused Git commits; further explanation is in `APPROACH.md`.
