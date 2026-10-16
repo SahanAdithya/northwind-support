@@ -23,6 +23,24 @@ describe('useTicketList', () => {
     vi.clearAllMocks();
   });
 
+  it('requests immediately when a dropdown alone changes, even without a search change', async () => {
+    const { result } = renderHook(() => useTicketList());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(getTickets).toHaveBeenCalledTimes(1);
+    act(() => { result.current.updateFilters({ status: 'InProgress' }); });
+    await act(async () => { await Promise.resolve(); });
+    expect(getTickets).toHaveBeenCalledTimes(2);
+    expect(getTickets).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'InProgress' }));
+  });
+
+  it('requests immediately on SLA changes with no additional wiring', async () => {
+    const { result } = renderHook(() => useTicketList());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    act(() => { result.current.updateFilters({ slaStatus: 'AtRisk' }); });
+    await act(async () => { await Promise.resolve(); });
+    expect(getTickets).toHaveBeenLastCalledWith(expect.objectContaining({ slaStatus: 'AtRisk' }));
+  });
+
   it('searches with the text the user typed, once the typing settles', async () => {
     const { result } = renderHook(() => useTicketList());
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../../api/client';
 import { ticketsApi } from '../../../api/tickets';
 import type { PagedResult, TicketFilters, TicketListItem } from '../../../types/api';
@@ -25,34 +25,48 @@ interface State {
   error?: string;
 }
 
-/** Owns the ticket list's filters and the data they produce. */
+/** Every non-search filter runs immediately; only search is debounced. */
 export function useTicketList() {
   const [filters, setFilters] = useState<TicketFilters>(emptyFilters);
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
   const [state, setState] = useState<State>({ isLoading: true });
-
-  const load = async () => {
-    setState((current) => ({ ...current, isLoading: true, error: undefined }));
-
-    try {
-      const data = await ticketsApi.getTickets(filters);
-      setState({ isLoading: false, data, error: undefined });
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
-      setState((current) => ({ ...current, isLoading: false, error: message }));
-    }
-  };
+  const requestNumber = useRef(0);
 
   useEffect(() => {
-    const handle = window.setTimeout(load, DEBOUNCE_MS);
+    const timeout = window.setTimeout(() => setDebouncedSearch(filters.search), DEBOUNCE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [filters.search]);
 
-    return () => window.clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object identity changes every render
-  }, [filters.search, filters.page, filters.pageSize]);
+  // The original effect watched only search/page/pageSize; dropdown changes never fetched.
+  // Keep search out of these dependencies so typing doesn't trigger an immediate request.
+  const requestFilters = useMemo<TicketFilters>(() => ({ ...filters, search: debouncedSearch }), [
+    debouncedSearch,
+    filters.status, filters.priority, filters.categoryId, filters.customerId,
+    filters.assignedAgentId, filters.unassignedOnly, filters.page, filters.pageSize,
+    filters.sortBy, filters.sortDirection,
+  ]);
+
+  const load = useCallback(async () => {
+    const request = ++requestNumber.current;
+    setState((current) => ({ ...current, isLoading: true, error: undefined }));
+    try {
+      const data = await ticketsApi.getTickets(requestFilters);
+      if (request === requestNumber.current) setState({ isLoading: false, data });
+    } catch (error) {
+      if (request === requestNumber.current) {
+        const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
+        setState((current) => ({ ...current, isLoading: false, error: message }));
+      }
+    }
+  }, [requestFilters]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestNumber.current += 1; };
+  }, [load]);
 
   const updateFilters = (patch: Partial<TicketFilters>) =>
     setFilters((current) => ({ ...current, ...patch, page: patch.page ?? 1 }));
-
   const resetFilters = () => setFilters(emptyFilters);
-
   return { filters, updateFilters, resetFilters, reload: load, ...state };
 }
