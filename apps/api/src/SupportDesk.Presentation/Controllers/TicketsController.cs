@@ -64,7 +64,7 @@ public sealed class TicketsController : ControllerBase
         UpdateTicketStatusRequest request,
         [FromServices] ChangeTicketStatusCommandHandler handler,
         CancellationToken ct) =>
-        handler.HandleAsync(id, request with { EscalatedBy = User.FindFirstValue(ClaimTypes.Name) }, ct);
+        handler.HandleAsync(id, request, ct);
 
     /// <summary>Assigns the ticket to an agent, or unassigns it when no agent is given.</summary>
     [HttpPatch("{id:int}/assignment")]
@@ -73,5 +73,5 @@ public sealed class TicketsController : ControllerBase
         AssignTicketRequest request,
         [FromServices] AssignTicketCommandHandler handler,
         CancellationToken ct) =>
-        handler.HandleAsync(id, request with { EscalatedBy = User.FindFirstValue(ClaimTypes.Name) }, ct);
+        handler.HandleAsync(id, request, ct);
 }

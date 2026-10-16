@@ -45,6 +45,8 @@ public sealed class Ticket : AggregateRoot
 
     public DateTime? ResolvedAtUtc { get; private set; }
 
+    public DateTime? SlaStartedAtUtc { get; private set; }
+
     /// <summary>True while the ticket still needs work from an agent.</summary>
     public bool IsOpen => Status is not (TicketStatus.Resolved or TicketStatus.Closed);
 
@@ -111,6 +113,7 @@ public sealed class Ticket : AggregateRoot
     {
         Priority = priority;
         DueAtUtc = dueAtUtc;
+        SlaStartedAtUtc = nowUtc;
         AssignedAgentId = agentId;
         UpdatedAtUtc = nowUtc;
     }
@@ -124,6 +127,7 @@ public sealed class Ticket : AggregateRoot
             throw new BusinessRuleViolationException("Resolved or Closed tickets cannot be escalated.");
         Priority = (TicketPriority)((int)Priority + 1);
         DueAtUtc = dueAtUtc;
+        SlaStartedAtUtc = nowUtc;
         AssignedAgentId = agentId;
         UpdatedAtUtc = nowUtc;
     }

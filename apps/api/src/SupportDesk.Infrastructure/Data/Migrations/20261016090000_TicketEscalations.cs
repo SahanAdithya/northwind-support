@@ -12,6 +12,8 @@ public partial class TicketEscalations : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.AddColumn<DateTime>(name: "SlaStartedAtUtc", table: "Tickets",
+            type: "datetime2(3)", nullable: true);
         migrationBuilder.CreateTable(
             name: "TicketEscalations",
             columns: table => new
@@ -45,6 +47,9 @@ public partial class TicketEscalations : Migration
         migrationBuilder.CreateIndex("IX_TicketEscalations_ToAgentId", "TicketEscalations", "ToAgentId");
     }
 
-    protected override void Down(MigrationBuilder migrationBuilder) =>
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
         migrationBuilder.DropTable("TicketEscalations");
+        migrationBuilder.DropColumn(name: "SlaStartedAtUtc", table: "Tickets");
+    }
 }

@@ -52,7 +52,7 @@ internal sealed class TicketCommandTestContext
         Categories.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Category("Technical", false, false));
         AgentCapacity.Setup(a => a.GetAvailableAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+            .ReturnsAsync(Array.Empty<AgentCapacity>());
 
         var getTicket = new GetTicketQueryHandler(TicketQueries.Object);
 

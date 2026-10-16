@@ -45,7 +45,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, IOptions<Sl
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
                 SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now,
-                    x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
+                    x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
             })
             .ToListAsync(ct);
 
@@ -75,7 +75,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, IOptions<Sl
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
                 SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now,
-                    x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
+                    x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
             })
             .FirstOrDefaultAsync(ct);
     }
@@ -103,7 +103,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, IOptions<Sl
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
                 SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now,
-                    x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
+                    x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
             })
             .ToListAsync(ct);
     }
@@ -153,10 +153,10 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, IOptions<Sl
                      (x.Ticket.ResolvedAtUtc == null && nowUtc > x.Ticket.DueAtUtc))),
                 SlaStatus.AtRisk => source.Where(x => x.Ticket.DueAtUtc != null &&
                     x.Ticket.ResolvedAtUtc == null && nowUtc <= x.Ticket.DueAtUtc &&
-                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 100 >= EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * (100 - atRiskPercent)),
+                    EF.Functions.DateDiffSecond(x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, nowUtc) * 100 >= EF.Functions.DateDiffSecond(x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * (100 - atRiskPercent)),
                 SlaStatus.WithinSla => source.Where(x => x.Ticket.DueAtUtc != null &&
-                    x.Ticket.ResolvedAtUtc == null &&
-                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 100 < EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * (100 - atRiskPercent)),
+                    x.Ticket.ResolvedAtUtc == null && nowUtc <= x.Ticket.DueAtUtc &&
+                    EF.Functions.DateDiffSecond(x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, nowUtc) * 100 < EF.Functions.DateDiffSecond(x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * (100 - atRiskPercent)),
                 _ => source
             };
         }

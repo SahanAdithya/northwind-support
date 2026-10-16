@@ -40,12 +40,13 @@ export function useTicketList() {
 
   // The original effect watched only search/page/pageSize; dropdown changes never fetched.
   // Keep search out of these dependencies so typing doesn't trigger an immediate request.
-  const requestFilters = useMemo<TicketFilters>(() => ({ ...filters, search: debouncedSearch }), [
-    debouncedSearch,
-    filters.status, filters.priority, filters.categoryId, filters.customerId,
-    filters.assignedAgentId, filters.unassignedOnly, filters.slaStatus, filters.page, filters.pageSize,
-    filters.sortBy, filters.sortDirection,
-  ]);
+  const { status, priority, categoryId, customerId, assignedAgentId, unassignedOnly,
+    slaStatus, page, pageSize, sortBy, sortDirection } = filters;
+  const requestFilters = useMemo<TicketFilters>(() => ({
+    search: debouncedSearch, status, priority, categoryId, customerId, assignedAgentId,
+    unassignedOnly, slaStatus, page, pageSize, sortBy, sortDirection,
+  }), [debouncedSearch, status, priority, categoryId, customerId, assignedAgentId,
+    unassignedOnly, slaStatus, page, pageSize, sortBy, sortDirection]);
 
   const load = useCallback(async () => {
     const request = ++requestNumber.current;
