@@ -16,14 +16,10 @@ namespace SupportDesk.Infrastructure.Queries;
 /// </summary>
 public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQueries
 {
-    /// <remarks>
-    /// Sorts and pages every ticket. The filter values bound into <paramref name="query"/>
-    /// (search, status, priority, category, customer, agent, unassigned-only) are not applied
-    /// yet: server-side filtering is still to be built.
-    /// </remarks>
+    /// <remarks>All predicates run in SQL before Count, sorting and paging.</remarks>
     public async Task<PagedResult<TicketListItemDto>> GetPagedAsync(TicketQuery query, CancellationToken ct)
     {
-        var tickets = TicketsWithLabels();
+        var tickets = ApplyFilters(TicketsWithLabels(), query, clock.UtcNow);
 
         var totalCount = await tickets.CountAsync(ct);
 
@@ -116,6 +112,51 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
         join category in db.Set<Category>() on ticket.CategoryId equals category.Id
         from agent in db.Set<Agent>().Where(a => a.Id == ticket.AssignedAgentId).DefaultIfEmpty()
         select new TicketWithLabels { Ticket = ticket, Customer = customer, Category = category, Agent = agent };
+
+    /// <summary>Composable SQL predicates; adding another filter needs just one Where.</summary>
+    private static IQueryable<TicketWithLabels> ApplyFilters(
+        IQueryable<TicketWithLabels> source, TicketQuery query, DateTime nowUtc)
+    {
+        if (query.Status.HasValue)
+            source = source.Where(x => x.Ticket.Status == query.Status.Value);
+        if (query.Priority.HasValue)
+            source = source.Where(x => x.Ticket.Priority == query.Priority.Value);
+        if (query.CategoryId.HasValue)
+            source = source.Where(x => x.Ticket.CategoryId == query.CategoryId.Value);
+        if (query.CustomerId.HasValue)
+            source = source.Where(x => x.Ticket.CustomerId == query.CustomerId.Value);
+        if (query.AssignedAgentId.HasValue)
+            source = source.Where(x => x.Ticket.AssignedAgentId == query.AssignedAgentId.Value);
+        if (query.UnassignedOnly)
+            source = source.Where(x => x.Ticket.AssignedAgentId == null);
+        var search = query.Search?.Trim();
+        if (!string.IsNullOrWhiteSpace(search))
+            source = source.Where(x => x.Ticket.Title.Contains(search) ||
+                x.Ticket.Reference.Contains(search) || x.Customer.Name.Contains(search));
+        if (query.SlaStatus.HasValue)
+        {
+            // Evaluated using server time, but as SQL-translatable date comparisons.
+            // 25% of the SLA window remaining = 75% elapsed from creation.
+            var status = query.SlaStatus.Value;
+            source = status switch
+            {
+                SlaStatus.NotApplicable => source.Where(x => x.Ticket.DueAtUtc == null),
+                SlaStatus.Met => source.Where(x => x.Ticket.DueAtUtc != null &&
+                    x.Ticket.ResolvedAtUtc != null && x.Ticket.ResolvedAtUtc <= x.Ticket.DueAtUtc),
+                SlaStatus.Breached => source.Where(x => x.Ticket.DueAtUtc != null &&
+                    ((x.Ticket.ResolvedAtUtc != null && x.Ticket.ResolvedAtUtc > x.Ticket.DueAtUtc) ||
+                     (x.Ticket.ResolvedAtUtc == null && nowUtc > x.Ticket.DueAtUtc))),
+                SlaStatus.AtRisk => source.Where(x => x.Ticket.DueAtUtc != null &&
+                    x.Ticket.ResolvedAtUtc == null && nowUtc <= x.Ticket.DueAtUtc &&
+                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 4 >= EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * 3),
+                SlaStatus.WithinSla => source.Where(x => x.Ticket.DueAtUtc != null &&
+                    x.Ticket.ResolvedAtUtc == null &&
+                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 4 < EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * 3),
+                _ => source
+            };
+        }
+        return source;
+    }
 
     private static IQueryable<TicketWithLabels> ApplySort(IQueryable<TicketWithLabels> source, TicketQuery query)
     {
