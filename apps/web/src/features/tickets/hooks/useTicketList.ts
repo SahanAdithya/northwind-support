@@ -50,7 +50,6 @@ export function useTicketList() {
 
   const load = useCallback(async () => {
     const request = ++requestNumber.current;
-    setState((current) => ({ ...current, isLoading: true, error: undefined }));
     try {
       const data = await ticketsApi.getTickets(requestFilters);
       if (request === requestNumber.current) setState({ isLoading: false, data });
@@ -63,12 +62,38 @@ export function useTicketList() {
   }, [requestFilters]);
 
   useEffect(() => {
-    void load();
-    return () => { requestNumber.current += 1; };
-  }, [load]);
+    const request = ++requestNumber.current;
+    let active = true;
+    void ticketsApi.getTickets(requestFilters)
+      .then((data) => {
+        if (active && request === requestNumber.current) {
+          setState({ isLoading: false, data });
+        }
+      })
+      .catch((error: unknown) => {
+        if (active && request === requestNumber.current) {
+          const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
+          setState((current) => ({ ...current, isLoading: false, error: message }));
+        }
+      });
+    return () => { active = false; requestNumber.current += 1; };
+  }, [requestFilters]);
 
-  const updateFilters = (patch: Partial<TicketFilters>) =>
+  // Mark user-initiated changes as loading immediately. Requests triggered by the
+  // effect below only update state after their asynchronous response arrives.
+  const markLoading = () =>
+    setState((current) => ({ ...current, isLoading: true, error: undefined }));
+  const updateFilters = (patch: Partial<TicketFilters>) => {
+    markLoading();
     setFilters((current) => ({ ...current, ...patch, page: patch.page ?? 1 }));
-  const resetFilters = () => setFilters(emptyFilters);
-  return { filters, updateFilters, resetFilters, reload: load, ...state };
+  };
+  const resetFilters = () => {
+    markLoading();
+    setFilters(emptyFilters);
+  };
+  const reload = () => {
+    markLoading();
+    return load();
+  };
+  return { filters, updateFilters, resetFilters, reload, ...state };
 }

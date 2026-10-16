@@ -21,7 +21,20 @@ export function EscalationPanel({ ticket, onUpdated }: Props) {
     } catch (e) { setHistoryError(toErrorMessage(e, 'Unable to load escalation history')); }
   }, [ticket.id]);
 
-  useEffect(() => { void loadHistory(); }, [loadHistory]);
+  useEffect(() => {
+    // Network responses update React state asynchronously; ignore stale responses.
+    let active = true;
+    void ticketsApi.getEscalations(ticket.id)
+      .then((entries) => {
+        if (!active) return;
+        setHistory(entries);
+        setHistoryError('');
+      })
+      .catch((error: unknown) => {
+        if (active) setHistoryError(toErrorMessage(error, 'Unable to load escalation history'));
+      });
+    return () => { active = false; };
+  }, [ticket.id]);
 
   const disabled = ticket.priority === 'Critical' ||
     ticket.status === 'Resolved' || ticket.status === 'Closed';
