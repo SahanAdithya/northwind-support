@@ -16,4 +16,9 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Do not include the local-only credentials in published Docker images. -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 </Project>

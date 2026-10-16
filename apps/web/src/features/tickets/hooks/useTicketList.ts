@@ -34,7 +34,10 @@ export function useTicketList() {
   const requestNumber = useRef(0);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedSearch(filters.search), DEBOUNCE_MS);
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(filters.search);
+      setFilters((current) => current.page === 1 ? current : { ...current, page: 1 });
+    }, DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
   }, [filters.search]);
 
@@ -85,10 +88,16 @@ export function useTicketList() {
     setState((current) => ({ ...current, isLoading: true, error: undefined }));
   const updateFilters = (patch: Partial<TicketFilters>) => {
     markLoading();
-    setFilters((current) => ({ ...current, ...patch, page: patch.page ?? 1 }));
+    // A search edit must not reset page until its debounce expires, otherwise
+    // the page change causes an immediate request with the *old* search term.
+    const searchOnly = Object.keys(patch).length === 1 && 'search' in patch;
+    setFilters((current) => ({
+      ...current, ...patch, page: patch.page ?? (searchOnly ? current.page : 1),
+    }));
   };
   const resetFilters = () => {
     markLoading();
+    setDebouncedSearch('');
     setFilters(emptyFilters);
   };
   const reload = () => {

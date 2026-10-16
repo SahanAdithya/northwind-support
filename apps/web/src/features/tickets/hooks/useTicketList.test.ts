@@ -41,6 +41,21 @@ describe('useTicketList', () => {
     expect(getTickets).toHaveBeenLastCalledWith(expect.objectContaining({ slaStatus: 'AtRisk' }));
   });
 
+  it('does not make an early request when typing search on page two', async () => {
+    const { result } = renderHook(() => useTicketList());
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    act(() => { result.current.updateFilters({ page: 2 }); });
+    await act(async () => { await Promise.resolve(); });
+    expect(getTickets).toHaveBeenCalledTimes(2);
+
+    act(() => { result.current.updateFilters({ search: 'invoice' }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(getTickets).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(getTickets).toHaveBeenCalledTimes(3);
+    expect(getTickets).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'invoice', page: 1 }));
+  });
+
   it('searches with the text the user typed, once the typing settles', async () => {
     const { result } = renderHook(() => useTicketList());
 
