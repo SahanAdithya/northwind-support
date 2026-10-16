@@ -20,7 +20,6 @@ describe('EscalationPanel', () => {
   it('rejects a short reason without calling the API', async () => {
     render(<EscalationPanel ticket={ticketDetail()} onUpdated={vi.fn()} />);
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'bad' } });
-    fireEvent.change(screen.getByLabelText(/Escalated by/), { target: { value: 'Alex' } });
     expect(screen.getByRole('button', { name: /Escalate priority/ })).toBeDisabled();
     expect(escalate).not.toHaveBeenCalled();
   });
@@ -30,7 +29,6 @@ describe('EscalationPanel', () => {
     escalate.mockRejectedValue(new ApiError(409, 'Critical tickets cannot be escalated.'));
     render(<EscalationPanel ticket={ticketDetail()} onUpdated={onUpdated} />);
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Multiple impacted customers' } });
-    fireEvent.change(screen.getByLabelText(/Escalated by/), { target: { value: 'Alex' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Escalate priority/ })); });
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Critical tickets/));
     expect(onUpdated).not.toHaveBeenCalled();

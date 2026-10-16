@@ -1,4 +1,5 @@
 import type { ProblemDetails } from '../types/api';
+import { authStore } from './auth';
 
 /**
  * Where the API lives. In development this stays '/api' and the Vite dev server proxies it
@@ -34,11 +35,13 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      ...(authStore.getToken() ? { Authorization: `Bearer ${authStore.getToken()}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
 
   if (!response.ok) {
+    if (response.status === 401) authStore.clear();
     const problem = await readProblem(response);
 
     throw new ApiError(

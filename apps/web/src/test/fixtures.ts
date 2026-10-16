@@ -1,4 +1,13 @@
-import type { PagedResult, TicketListItem } from '../types/api';
+import type { PagedResult, TicketListItem, TicketDetail } from '../types/api';
+
+export function ticketDetail(overrides: Partial<TicketDetail> = {}): TicketDetail {
+  return {
+    ...ticketListItem(), description: 'A ticket with a description.',
+    customer: { id: 2, name: 'Fabrikam Inc', tier: 'Standard', email: 'hello@example.com', phone: null },
+    category: { id: 2, name: 'Billing', requiresSpecialist: true },
+    ...overrides,
+  };
+}
 
 /** A list row with sensible defaults, so tests only state what they care about. */
 export function ticketListItem(overrides: Partial<TicketListItem> = {}): TicketListItem {

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using SupportDesk.Application.Contracts.Common;
 using SupportDesk.Application.Contracts.Tickets;
 using SupportDesk.Application.Features.Tickets.Commands.AssignTicket;
@@ -45,7 +46,7 @@ public sealed class TicketsController : ControllerBase
     [HttpPost("{id:int}/escalate")]
     public Task<EscalateTicketResponse> Escalate(int id, EscalateTicketRequest request,
         [FromServices] EscalateTicketCommandHandler handler, CancellationToken ct) =>
-        handler.HandleAsync(id, request, ct);
+        handler.HandleAsync(id, request with { EscalatedBy = User.FindFirstValue(ClaimTypes.Name) }, ct);
 
     [HttpGet("{id:int}/escalations")]
     public async Task<IReadOnlyList<TicketEscalationDto>> Escalations(int id,
@@ -63,7 +64,7 @@ public sealed class TicketsController : ControllerBase
         UpdateTicketStatusRequest request,
         [FromServices] ChangeTicketStatusCommandHandler handler,
         CancellationToken ct) =>
-        handler.HandleAsync(id, request, ct);
+        handler.HandleAsync(id, request with { EscalatedBy = User.FindFirstValue(ClaimTypes.Name) }, ct);
 
     /// <summary>Assigns the ticket to an agent, or unassigns it when no agent is given.</summary>
     [HttpPatch("{id:int}/assignment")]
@@ -72,5 +73,5 @@ public sealed class TicketsController : ControllerBase
         AssignTicketRequest request,
         [FromServices] AssignTicketCommandHandler handler,
         CancellationToken ct) =>
-        handler.HandleAsync(id, request, ct);
+        handler.HandleAsync(id, request with { EscalatedBy = User.FindFirstValue(ClaimTypes.Name) }, ct);
 }

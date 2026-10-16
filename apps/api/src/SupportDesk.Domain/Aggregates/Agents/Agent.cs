@@ -31,6 +31,11 @@ public sealed class Agent : AggregateRoot
 
     public string Email { get; private set; } = string.Empty;
 
+    /// <summary>PBKDF2 PHC-like encoded salted password hash. Never contains plaintext.</summary>
+    public string? PasswordHash { get; private set; }
+
+    public void SetPasswordHash(string encodedHash) => PasswordHash = encodedHash;
+
     /// <summary>Inactive agents keep their history but take no new work.</summary>
     public bool IsActive { get; private set; }
 

@@ -43,9 +43,9 @@ export const ticketsApi = {
   getTickets: (filters: TicketFilters) =>
     request<PagedResult<TicketListItem>>(`/tickets?${buildQuery(filters)}`),
 
-  escalateTicket: (id: number, reason: string, escalatedBy: string) =>
+  escalateTicket: (id: number, reason: string) =>
     request<EscalateTicketResponse>(`/tickets/${id}/escalate`, {
-      method: 'POST', body: JSON.stringify({ reason, escalatedBy }),
+      method: 'POST', body: JSON.stringify({ reason }),
     }),
 
   getEscalations: (id: number) => request<TicketEscalation[]>(`/tickets/${id}/escalations`),

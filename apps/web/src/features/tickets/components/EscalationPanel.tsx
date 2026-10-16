@@ -9,7 +9,6 @@ interface Props { ticket: TicketDetail; onUpdated: (ticket: TicketDetail) => voi
 /** Client validation mirrors the API, but server validation remains authoritative. */
 export function EscalationPanel({ ticket, onUpdated }: Props) {
   const [reason, setReason] = useState('');
-  const [escalatedBy, setEscalatedBy] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<TicketEscalation[]>([]);
@@ -27,15 +26,14 @@ export function EscalationPanel({ ticket, onUpdated }: Props) {
   const disabled = ticket.priority === 'Critical' ||
     ticket.status === 'Resolved' || ticket.status === 'Closed';
   const invalidReason = reason.trim().length < 5 || reason.trim().length > 500;
-  const invalidActor = escalatedBy.trim().length === 0 || escalatedBy.trim().length > 100;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (disabled || invalidReason || invalidActor || submitting) return;
+    if (disabled || invalidReason || submitting) return;
     setSubmitting(true);
     setError('');
     try {
-      const result = await ticketsApi.escalateTicket(ticket.id, reason.trim(), escalatedBy.trim());
+      const result = await ticketsApi.escalateTicket(ticket.id, reason.trim());
       onUpdated(result.ticket);
       setReason('');
       await loadHistory();
@@ -54,14 +52,9 @@ export function EscalationPanel({ ticket, onUpdated }: Props) {
           onChange={(e) => setReason(e.target.value)} required aria-describedby="escalation-reason-help" />
         <small id="escalation-reason-help">Explain why this ticket needs a higher priority.</small>
       </div>
-      <div className="field">
-        <label className="field__label" htmlFor="escalated-by">Escalated by</label>
-        <input id="escalated-by" maxLength={100} value={escalatedBy}
-          onChange={(e) => setEscalatedBy(e.target.value)} required />
-      </div>
       {error && <p role="alert">{error}</p>}
       <button type="submit" className="button button--primary"
-        disabled={invalidReason || invalidActor || submitting}>{submitting ? 'Escalating…' : 'Escalate priority'}</button>
+        disabled={invalidReason || submitting}>{submitting ? 'Escalating…' : 'Escalate priority'}</button>
     </form>}
     <h3>Escalation history</h3>
     {historyError && <p role="alert">{historyError}</p>}

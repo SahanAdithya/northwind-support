@@ -5,6 +5,7 @@ using SupportDesk.Domain.Aggregates.Agents;
 using SupportDesk.Domain.Aggregates.Categories;
 using SupportDesk.Domain.Aggregates.Customers;
 using SupportDesk.Domain.Aggregates.Tickets;
+using SupportDesk.Infrastructure.Services;
 
 namespace SupportDesk.Infrastructure.Data;
 
@@ -24,7 +25,8 @@ public sealed class SupportDbSeeder(SupportDbContext db, IClock clock, ILogger<S
     {
         if (await db.Set<Ticket>().AnyAsync(ct))
         {
-            logger.LogInformation("Seed data already present; skipping.");
+            await SeedDevelopmentPasswordsAsync(ct);
+            logger.LogInformation("Demo tickets present; verified development agent credentials.");
             return;
         }
 
@@ -38,6 +40,7 @@ public sealed class SupportDbSeeder(SupportDbContext db, IClock clock, ILogger<S
         db.AddRange(customers);
         db.AddRange(agents);
         await db.SaveChangesAsync(ct);
+        await SeedDevelopmentPasswordsAsync(ct);
 
         SeedSpecializations(agents, categories);
         await db.SaveChangesAsync(ct);
@@ -48,6 +51,15 @@ public sealed class SupportDbSeeder(SupportDbContext db, IClock clock, ILogger<S
         logger.LogInformation(
             "Seeded {Categories} categories, {Customers} customers, {Agents} agents and {Tickets} tickets.",
             categories.Count, customers.Count, agents.Count, await db.Set<Ticket>().CountAsync(ct));
+    }
+
+    private async Task SeedDevelopmentPasswordsAsync(CancellationToken ct)
+    {
+        // Deliberate local fixture, never enabled in production migrations.
+        const string password = "DevOnly!Support2026";
+        var agents = await db.Set<Agent>().Where(a => a.PasswordHash == null).ToListAsync(ct);
+        foreach (var agent in agents) agent.SetPasswordHash(PasswordService.Hash(password));
+        if (agents.Count > 0) await db.SaveChangesAsync(ct);
     }
 
     private static List<Category> SeedCategories() =>

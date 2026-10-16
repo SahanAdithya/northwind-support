@@ -1,4 +1,10 @@
 using System.Text.Json.Serialization;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.EntityFrameworkCore;
+using SupportDesk.Infrastructure.Data;
 using SupportDesk.Application;
 using SupportDesk.Infrastructure;
 using SupportDesk.Presentation.Extensions;
@@ -24,6 +30,30 @@ builder.Services.AddCors(options => options.AddPolicy(
         .AllowAnyHeader()
         .AllowAnyMethod()));
 
+var signingKey = builder.Configuration["Jwt:Key"] ??
+    throw new InvalidOperationException("Set Jwt:Key (Jwt__Key in environment) before starting the API.");
+if (Encoding.UTF8.GetByteCount(signingKey) < 32)
+    throw new InvalidOperationException("Jwt:Key must be at least 32 UTF-8 bytes.");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+builder.Services.AddHealthChecks().AddDbContextCheck<SupportDbContext>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -44,6 +74,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors(FrontendCorsPolicy);
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapHealthChecks("/health").AllowAnonymous();
 
 app.MapControllers();
 
