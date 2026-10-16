@@ -29,8 +29,11 @@ public class TicketFilteringTests
     public async Task FiltersCombineWithAnd()
     {
         await using var fixture = await Fixture.Create();
-        var result = await fixture.Queries.GetPagedAsync(new TicketQuery {
-            Priority = TicketPriority.High, Status = TicketStatus.Open, CustomerId = fixture.FirstCustomerId
+        var result = await fixture.Queries.GetPagedAsync(new TicketQuery
+        {
+            Priority = TicketPriority.High,
+            Status = TicketStatus.Open,
+            CustomerId = fixture.FirstCustomerId
         }, default);
         Assert.Single(result.Items);
         Assert.Equal("TCK-0001", result.Items[0].Reference);
@@ -41,8 +44,10 @@ public class TicketFilteringTests
     public async Task CustomerNameSearchIsTrimmedAndCombinedWithPriority()
     {
         await using var fixture = await Fixture.Create();
-        var result = await fixture.Queries.GetPagedAsync(new TicketQuery {
-            Search = "  Contoso  ", Priority = TicketPriority.High
+        var result = await fixture.Queries.GetPagedAsync(new TicketQuery
+        {
+            Search = "  Contoso  ",
+            Priority = TicketPriority.High
         }, default);
         Assert.Equal(2, result.TotalCount);
         Assert.All(result.Items, item => Assert.Equal("Contoso Ltd", item.Customer.Name));

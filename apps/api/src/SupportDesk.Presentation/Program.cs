@@ -1,16 +1,16 @@
-using System.Text.Json.Serialization;
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
-using SupportDesk.Infrastructure.Data;
-using SupportDesk.Presentation.Services;
+using Microsoft.IdentityModel.Tokens;
 using SupportDesk.Application;
 using SupportDesk.Infrastructure;
+using SupportDesk.Infrastructure.Data;
 using SupportDesk.Presentation.Extensions;
 using SupportDesk.Presentation.Filters;
 using SupportDesk.Presentation.Middleware;
+using SupportDesk.Presentation.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

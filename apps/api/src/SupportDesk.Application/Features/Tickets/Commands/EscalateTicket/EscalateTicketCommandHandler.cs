@@ -19,8 +19,10 @@ public sealed class EscalateTicketCommandHandler(
     {
         if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length is < 5 or > 500 ||
             string.IsNullOrWhiteSpace(request.EscalatedBy) || request.EscalatedBy.Trim().Length > 100)
-            throw new ValidationException(new Dictionary<string, string[]> {
-                ["Reason"] = ["Reason must be 5–500 characters and actor is required."] });
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["Reason"] = ["Reason must be 5–500 characters and actor is required."]
+            });
 
         var ticket = await tickets.GetByIdAsync(id, ct) ?? throw new NotFoundException("Ticket", id);
         if (ticket.Priority == TicketPriority.Critical)
