@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using SupportDesk.Application.Features.Tickets.Triage;
+using SupportDesk.Domain.Aggregates.Categories;
 using SupportDesk.Application.Abstractions;
 using SupportDesk.Application.Contracts.Tickets;
 using SupportDesk.Application.Features.Tickets.Commands.AssignTicket;
@@ -44,10 +47,18 @@ internal sealed class TicketCommandTestContext
                 Category = new CategoryDto(1, "General", false)
             });
 
+        Customers.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Customer("Contoso", "test@example.com", null, CustomerTier.Premium, Clock.UtcNow));
+        Categories.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Category("Technical", false, false));
+        AgentCapacity.Setup(a => a.GetAvailableAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
         var getTicket = new GetTicketQueryHandler(TicketQueries.Object);
 
         RaiseTicket = new RaiseTicketCommandHandler(
-            Tickets.Object, Customers.Object, Categories.Object, UnitOfWork.Object, Clock, getTicket,
+            Tickets.Object, Customers.Object, Categories.Object, AgentCapacity.Object,
+            Options.Create(new SlaOptions()), UnitOfWork.Object, Clock, getTicket,
             NullLogger<RaiseTicketCommandHandler>.Instance);
 
         ChangeTicketStatus = new ChangeTicketStatusCommandHandler(Tickets.Object, UnitOfWork.Object, Clock, getTicket);
@@ -64,6 +75,8 @@ internal sealed class TicketCommandTestContext
     public Mock<ICategoryRepository> Categories { get; } = new();
 
     public Mock<IAgentRepository> Agents { get; } = new();
+
+    public Mock<IAgentCapacityQueries> AgentCapacity { get; } = new();
 
     public Mock<IUnitOfWork> UnitOfWork { get; } = new();
 

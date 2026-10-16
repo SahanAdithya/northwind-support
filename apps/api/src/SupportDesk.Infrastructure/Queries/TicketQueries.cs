@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using SupportDesk.Application.Features.Tickets.Triage;
 using SupportDesk.Application.Abstractions;
 using SupportDesk.Application.Contracts.Common;
 using SupportDesk.Application.Contracts.Tickets;
@@ -14,12 +16,12 @@ namespace SupportDesk.Infrastructure.Queries;
 /// Ticket reads. Projected in the database and never tracked. Aggregates hold only each
 /// other's ids, so the customer, category and agent labels are joined in here, on the read side.
 /// </summary>
-public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQueries
+public sealed class TicketQueries(SupportDbContext db, IClock clock, IOptions<SlaOptions> sla) : ITicketQueries
 {
     /// <remarks>All predicates run in SQL before Count, sorting and paging.</remarks>
     public async Task<PagedResult<TicketListItemDto>> GetPagedAsync(TicketQuery query, CancellationToken ct)
     {
-        var tickets = ApplyFilters(TicketsWithLabels(), query, clock.UtcNow);
+        var tickets = ApplyFilters(TicketsWithLabels(), query, clock.UtcNow, sla.Value.AtRiskThresholdPercent);
 
         var totalCount = await tickets.CountAsync(ct);
 
@@ -42,7 +44,8 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now,
+                    x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
             })
             .ToListAsync(ct);
 
@@ -71,7 +74,8 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now,
+                    x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
             })
             .FirstOrDefaultAsync(ct);
     }
@@ -98,7 +102,8 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now,
+                    x.Ticket.CreatedAtUtc, sla.Value.AtRiskThresholdPercent)
             })
             .ToListAsync(ct);
     }
@@ -115,7 +120,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
 
     /// <summary>Composable SQL predicates; adding another filter needs just one Where.</summary>
     private static IQueryable<TicketWithLabels> ApplyFilters(
-        IQueryable<TicketWithLabels> source, TicketQuery query, DateTime nowUtc)
+        IQueryable<TicketWithLabels> source, TicketQuery query, DateTime nowUtc, double atRiskPercent)
     {
         if (query.Status.HasValue)
             source = source.Where(x => x.Ticket.Status == query.Status.Value);
@@ -148,10 +153,10 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                      (x.Ticket.ResolvedAtUtc == null && nowUtc > x.Ticket.DueAtUtc))),
                 SlaStatus.AtRisk => source.Where(x => x.Ticket.DueAtUtc != null &&
                     x.Ticket.ResolvedAtUtc == null && nowUtc <= x.Ticket.DueAtUtc &&
-                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 4 >= EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * 3),
+                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 100 >= EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * (100 - atRiskPercent)),
                 SlaStatus.WithinSla => source.Where(x => x.Ticket.DueAtUtc != null &&
                     x.Ticket.ResolvedAtUtc == null &&
-                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 4 < EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * 3),
+                    EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, nowUtc) * 100 < EF.Functions.DateDiffSecond(x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * (100 - atRiskPercent)),
                 _ => source
             };
         }

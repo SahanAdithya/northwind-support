@@ -106,6 +106,28 @@ public sealed class Ticket : AggregateRoot
     /// Hands the ticket to an agent, or takes it back off them when <paramref name="agentId"/>
     /// is null. Whether the agent may take it is checked by the caller, which can see agents.
     /// </summary>
+    /// <summary>Sets the SLA chosen by the shared triage policy.</summary>
+    public void ApplyTriage(TicketPriority priority, DateTime dueAtUtc, int? agentId, DateTime nowUtc)
+    {
+        Priority = priority;
+        DueAtUtc = dueAtUtc;
+        AssignedAgentId = agentId;
+        UpdatedAtUtc = nowUtc;
+    }
+
+    /// <summary>Advance exactly one urgency level, respecting the ticket lifecycle.</summary>
+    public void Escalate(DateTime dueAtUtc, int? agentId, DateTime nowUtc)
+    {
+        if (Priority == TicketPriority.Critical)
+            throw new BusinessRuleViolationException("Critical tickets cannot be escalated.");
+        if (!IsOpen)
+            throw new BusinessRuleViolationException("Resolved or Closed tickets cannot be escalated.");
+        Priority = (TicketPriority)((int)Priority + 1);
+        DueAtUtc = dueAtUtc;
+        AssignedAgentId = agentId;
+        UpdatedAtUtc = nowUtc;
+    }
+
     public void AssignTo(int? agentId, DateTime nowUtc)
     {
         AssignedAgentId = agentId;

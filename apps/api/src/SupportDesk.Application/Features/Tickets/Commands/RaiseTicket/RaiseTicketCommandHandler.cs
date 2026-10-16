@@ -1,56 +1,47 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SupportDesk.Application.Abstractions;
 using SupportDesk.Application.Contracts.Tickets;
 using SupportDesk.Application.Exceptions;
 using SupportDesk.Application.Features.Tickets.Queries.GetTicket;
+using SupportDesk.Application.Features.Tickets.Triage;
+using SupportDesk.Domain.Aggregates.Customers;
 using SupportDesk.Domain.Aggregates.Tickets;
 using SupportDesk.Domain.Repositories;
 
 namespace SupportDesk.Application.Features.Tickets.Commands.RaiseTicket;
 
-/// <summary>
-/// Raises a ticket for a customer.
-/// </summary>
 public sealed class RaiseTicketCommandHandler(
-    ITicketRepository tickets,
-    ICustomerRepository customers,
-    ICategoryRepository categories,
-    IUnitOfWork unitOfWork,
-    IClock clock,
-    GetTicketQueryHandler getTicket,
+    ITicketRepository tickets, ICustomerRepository customers, ICategoryRepository categories,
+    IAgentCapacityQueries agentCapacity, IOptions<SlaOptions> sla,
+    IUnitOfWork unitOfWork, IClock clock, GetTicketQueryHandler getTicket,
     ILogger<RaiseTicketCommandHandler> logger)
 {
-    /// <exception cref="NotFoundException">The customer or the category does not exist.</exception>
     public async Task<TicketDetailDto> HandleAsync(CreateTicketRequest request, CancellationToken ct)
     {
-        if (!await customers.ExistsAsync(request.CustomerId, ct))
-        {
-            throw new NotFoundException("Customer", request.CustomerId);
-        }
-
-        if (!await categories.ExistsAsync(request.CategoryId, ct))
-        {
-            throw new NotFoundException("Category", request.CategoryId);
-        }
-
-        // The response window is still worked out by hand by the team lead, so a new ticket
-        // starts with no due date and no owner.
-        var ticket = Ticket.Raise(
-            await tickets.NextReferenceAsync(ct),
-            request.Title,
-            request.Description,
-            request.CustomerId,
-            request.CategoryId,
-            request.RequestedPriority ?? TicketPriority.Medium,
-            clock.UtcNow);
-
+        var customer = await customers.GetByIdAsync(request.CustomerId, ct)
+            ?? throw new NotFoundException("Customer", request.CustomerId);
+        var category = await categories.GetByIdAsync(request.CategoryId, ct)
+            ?? throw new NotFoundException("Category", request.CategoryId);
+        var now = clock.UtcNow;
+        var requested = request.RequestedPriority ?? TicketPriority.Medium;
+        var priority = TriagePolicy.ChoosePriority(requested, category.ForcesCriticalPriority);
+        var premium = customer.Tier == CustomerTier.Premium;
+        var window = sla.Value.WindowFor(priority, premium);
+        var agents = await agentCapacity.GetAvailableAsync(category.Id, ct);
+        var owner = TriagePolicy.ChooseAgent(agents, category.RequiresSpecialist);
+        var ticket = Ticket.Raise(await tickets.NextReferenceAsync(ct),
+            request.Title, request.Description, request.CustomerId, request.CategoryId, priority, now);
+        ticket.ApplyTriage(priority, now.Add(window), owner?.Id, now);
         await tickets.AddAsync(ticket, ct);
         await unitOfWork.SaveChangesAsync(ct);
-
-        logger.LogInformation(
-            "Ticket {Reference} raised for customer {CustomerId} in category {CategoryId}.",
-            ticket.Reference, ticket.CustomerId, ticket.CategoryId);
-
-        return await getTicket.HandleAsync(ticket.Id, ct);
+        logger.LogInformation("Created ticket {Reference}, triaged to {AgentId}.", ticket.Reference, owner?.Id);
+        var dto = await getTicket.HandleAsync(ticket.Id, ct);
+        dto.Triage = new TriageDecisionDto(
+            category.ForcesCriticalPriority ? "Category requires Critical priority." : $"Requested {priority} priority.",
+            $"{(premium ? "Premium" : "Standard")} SLA window of {window.TotalHours:g} hours.",
+            owner is null ? "Unassigned: no active qualified agent is below capacity." :
+            $"Assigned to {owner.Name} (fewest open tickets; deterministic ID tie-break).");
+        return dto;
     }
 }

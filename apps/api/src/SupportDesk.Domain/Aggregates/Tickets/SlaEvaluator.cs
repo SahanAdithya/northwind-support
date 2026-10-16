@@ -1,15 +1,24 @@
 namespace SupportDesk.Domain.Aggregates.Tickets;
 
-/// <summary>
-/// Works out where a ticket stands against its due date. SLA status is always derived from
-/// the ticket's dates and the current time - never stored.
-/// </summary>
+/// <summary>SLA is derived at read time; timestamps are never used as a status column.</summary>
 public static class SlaEvaluator
 {
     public static SlaStatus Evaluate(DateTime? dueAtUtc, DateTime? resolvedAtUtc, DateTime nowUtc) =>
-        dueAtUtc is null ? SlaStatus.NotApplicable
-        : resolvedAtUtc is not null
-            ? (resolvedAtUtc <= dueAtUtc ? SlaStatus.Met : SlaStatus.Breached)
-        : nowUtc > dueAtUtc ? SlaStatus.Breached
-        : SlaStatus.WithinSla;
+        Evaluate(dueAtUtc, resolvedAtUtc, nowUtc, nowUtc, 0);
+
+    public static SlaStatus Evaluate(
+        DateTime? dueAtUtc, DateTime? resolvedAtUtc, DateTime nowUtc,
+        DateTime createdAtUtc, double atRiskThresholdPercent)
+    {
+        if (dueAtUtc is null) return SlaStatus.NotApplicable;
+        if (resolvedAtUtc is not null)
+            return resolvedAtUtc <= dueAtUtc ? SlaStatus.Met : SlaStatus.Breached;
+        if (nowUtc > dueAtUtc) return SlaStatus.Breached;
+        var total = dueAtUtc.Value - createdAtUtc;
+        var remaining = dueAtUtc.Value - nowUtc;
+        if (total > TimeSpan.Zero && remaining.TotalSeconds <=
+            total.TotalSeconds * atRiskThresholdPercent / 100d)
+            return SlaStatus.AtRisk;
+        return SlaStatus.WithinSla;
+    }
 }

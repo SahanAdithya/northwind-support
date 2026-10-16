@@ -30,9 +30,13 @@ export function CreateTicketPage() {
 
       {created && (
         <div className="card notice" role="status">
-          <p>
-            Raised <strong>{created.reference}</strong> for {created.customer.name}.
-          </p>
+          <p>Raised <strong>{created.reference}</strong> for {created.customer.name}.</p>
+          <p>Priority: <strong>{created.priority}</strong> · Owner: {created.assignedAgent?.fullName ?? 'Unassigned'} · Due: {created.dueAtUtc ? new Date(created.dueAtUtc).toLocaleString() : 'No SLA'}</p>
+          {created.triage && <div>
+            <p>{created.triage.priorityReason}</p>
+            <p>{created.triage.slaReason}</p>
+            <p>{created.triage.assignmentReason}</p>
+          </div>}
           <div className="button-row">
             <button
               type="button"

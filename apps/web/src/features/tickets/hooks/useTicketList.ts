@@ -13,6 +13,7 @@ export const emptyFilters: TicketFilters = {
   customerId: undefined,
   assignedAgentId: undefined,
   unassignedOnly: false,
+  slaStatus: undefined,
   page: 1,
   pageSize: 20,
   sortBy: 'createdAtUtc',
@@ -42,7 +43,7 @@ export function useTicketList() {
   const requestFilters = useMemo<TicketFilters>(() => ({ ...filters, search: debouncedSearch }), [
     debouncedSearch,
     filters.status, filters.priority, filters.categoryId, filters.customerId,
-    filters.assignedAgentId, filters.unassignedOnly, filters.page, filters.pageSize,
+    filters.assignedAgentId, filters.unassignedOnly, filters.slaStatus, filters.page, filters.pageSize,
     filters.sortBy, filters.sortDirection,
   ]);
 

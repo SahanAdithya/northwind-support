@@ -1,5 +1,7 @@
 import type {
   CreateTicketPayload,
+  EscalateTicketResponse,
+  TicketEscalation,
   PagedResult,
   TicketDetail,
   TicketFilters,
@@ -30,6 +32,7 @@ function buildQuery(filters: TicketFilters): string {
   append('customerId', filters.customerId);
   append('assignedAgentId', filters.assignedAgentId);
   append('unassignedOnly', filters.unassignedOnly);
+  append('slaStatus', filters.slaStatus);
   append('sortBy', filters.sortBy);
   append('sortDirection', filters.sortDirection);
 
@@ -39,6 +42,13 @@ function buildQuery(filters: TicketFilters): string {
 export const ticketsApi = {
   getTickets: (filters: TicketFilters) =>
     request<PagedResult<TicketListItem>>(`/tickets?${buildQuery(filters)}`),
+
+  escalateTicket: (id: number, reason: string, escalatedBy: string) =>
+    request<EscalateTicketResponse>(`/tickets/${id}/escalate`, {
+      method: 'POST', body: JSON.stringify({ reason, escalatedBy }),
+    }),
+
+  getEscalations: (id: number) => request<TicketEscalation[]>(`/tickets/${id}/escalations`),
 
   getTicket: (id: number) => request<TicketDetail>(`/tickets/${id}`),
 
