@@ -1,0 +1,13 @@
+**/bin
+**/obj
+**/node_modules
+**/dist
+.git
+.env
+.env.*
+!.env.example
+apps/web
+.vscode
+README.md
+ASSIGNMENT_CANDIDATE.pdf
+**/TestResults

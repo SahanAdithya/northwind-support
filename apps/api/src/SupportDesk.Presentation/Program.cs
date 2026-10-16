@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using SupportDesk.Infrastructure.Data;
+using SupportDesk.Presentation.Services;
 using SupportDesk.Application;
 using SupportDesk.Infrastructure;
 using SupportDesk.Presentation.Extensions;
@@ -52,7 +53,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
-builder.Services.AddHealthChecks().AddDbContextCheck<SupportDbContext>();
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("sqlserver");
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
